@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>視覚芸術作品 評価レーダーチャート - 鑑賞ログ</title>
+    
+    <!-- PWA / Web App Settings for Smartphone & GitHub Pages -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ArtRadar">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=180&h=180&auto=format&fit=crop">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        art: {
+                            50: '#f4f4f6',
+                            100: '#e6e6eb',
+                            800: '#1e1e24',
+                            900: '#121216',
+                            accent: '#8b5cf6',
+                            accentHover: '#7c3aed'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas for card export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 22px;
+            width: 22px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
+        }
+        .gradient-border {
+            background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.1));
+        }
+        .entry-pill.active {
+            background-color: #8b5cf6;
+            color: #ffffff;
+            border-color: #a7f3d0;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased pb-12 select-none sm:select-auto">
+
+    <!-- Header Navbar -->
+    <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-3 shadow-md">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-gradient-to-tr from-purple-600 to-pink-500 p-2 rounded-xl text-white shadow-lg">
+                    <i class="fa-solid fa-trophy text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base md:text-lg leading-tight tracking-tight">コンテスト絵画 採点・鑑賞ログ</h1>
+                    <p class="text-[11px] text-slate-400">30作品の初見感想 & 6軸レーダーチャート評価</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="btn-copy-code" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-medium flex items-center space-x-1 transition shadow">
+                    <i class="fa-solid fa-code"></i>
+                    <span class="hidden sm:inline">コード全コピー</span>
+                </button>
+                <button id="btn-guide" class="p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg text-xs md:text-sm flex items-center space-x-1 transition">
+                    <i class="fa-solid fa-circle-question text-purple-400"></i>
+                    <span class="hidden sm:inline">評価基準</span>
+                </button>
+                <button id="btn-gallery" class="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs md:text-sm font-medium flex items-center space-x-1 transition shadow">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span>全作品一覧 (<span id="log-count">0</span>/30)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Entry Selector Quick Bar -->
+    <div class="bg-slate-900 border-b border-slate-800 py-2.5 px-4 sticky top-[57px] z-20 shadow-md">
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-3 overflow-x-auto no-scrollbar">
+            <div class="flex items-center space-x-2 shrink-0">
+                <span class="text-xs font-bold text-purple-400"><i class="fa-solid fa-layer-group mr-1"></i>作品選択:</span>
+                <select id="select-entry-dropdown" class="bg-slate-950 border border-purple-500/50 rounded-lg text-xs py-1.5 px-2 text-white font-semibold focus:outline-none focus:border-purple-400">
+                    <!-- Populated by JS (1 to 30) -->
+                </select>
+            </div>
+            
+            <!-- Entry Quick Pills Horizontal Scroll -->
+            <div id="entry-pills-container" class="flex space-x-1.5 overflow-x-auto py-1 no-scrollbar">
+                <!-- Pills generated by JS -->
+            </div>
+
+            <div class="flex items-center space-x-2 shrink-0">
+                <button id="btn-prev-entry" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs"><i class="fa-solid fa-chevron-left"></i> 前へ</button>
+                <button id="btn-next-entry" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs">次へ <i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl mx-auto px-4 mt-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT COLUMN: Entry Info, First Impressions, Radar & Image -->
+            <div class="lg:col-span-6 space-y-6">
+                <!-- Exportable Summary Card Container -->
+                <div id="export-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5">
+                    
+                    <!-- Artwork Header Details in Card -->
+                    <div class="flex justify-between items-start border-b border-slate-800/80 pb-3">
+                        <div class="space-y-1 w-full">
+                            <div class="flex items-center justify-between">
+                                <span id="current-entry-badge" class="bg-purple-900/80 text-purple-300 border border-purple-700/60 text-xs px-2.5 py-0.5 rounded-full font-bold">
+                                    No. 1 / 30
+                                </span>
+                                <span class="text-[11px] text-slate-400" id="save-status-text"><i class="fa-solid fa-cloud-arrow-up text-emerald-400 mr-1"></i>自動保存済</span>
+                            </div>
+                            <input type="text" id="art-title" value="作品 No.1" placeholder="作品名・タイトルを入力" 
+                                   class="w-full bg-transparent font-bold text-xl text-slate-100 border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none transition py-1">
+                            <div class="flex flex-wrap gap-2 text-xs text-slate-400">
+                                <input type="text" id="art-artist" value="" placeholder="作者名 / 出品者" 
+                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-36 transition">
+                                <span>•</span>
+                                <input type="text" id="art-location" value="絵画コンテスト" placeholder="部門 / 審査区分" 
+                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-36 transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 1番目：初見での感想（第一印象） INPUT SECTION -->
+                    <div class="bg-gradient-to-r from-purple-950/40 to-slate-950 p-3.5 rounded-xl border border-purple-500/30 space-y-1.5">
+                        <label class="block text-xs font-bold text-purple-300 flex items-center justify-between">
+                            <span><i class="fa-solid fa-eye text-pink-400 mr-1.5"></i>1. 初見での感想（第一印象・直感メモ）</span>
+                            <span class="text-[10px] text-purple-400/80 font-normal">パッと見た瞬間のインプレッション</span>
+                        </label>
+                        <textarea id="art-first-impression" rows="2" placeholder="一目見て惹かれた点、色づかいの衝撃、構図の第一印象など、最初に感じた直感を記入..." 
+                                  class="w-full bg-slate-950/90 border border-slate-700/80 rounded-lg p-2.5 text-xs text-slate-100 focus:outline-none focus:border-purple-400 transition resize-none"></textarea>
+                    </div>
+
+                    <!-- Image & Radar Visual Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                        <!-- Image Container -->
+                        <div class="relative group rounded-xl overflow-hidden bg-slate-950 border border-slate-800 aspect-square flex items-center justify-center">
+                            <img id="artwork-img" src="https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=600&auto=format&fit=crop" 
+                                 alt="Artwork" class="w-full h-full object-cover">
+                            
+                            <!-- Upload / Camera Overlay Controls -->
+                            <div class="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition flex flex-col justify-center items-center gap-2 p-3">
+                                <label class="cursor-pointer bg-purple-600 hover:bg-purple-700 text-white text-xs px-3 py-2 rounded-lg font-medium flex items-center space-x-2 shadow">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>写真を撮影 / 選択</span>
+                                    <input type="file" id="image-upload" accept="image/*" class="hidden">
+                                </label>
+                                <button id="btn-sample-img" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] px-2.5 py-1 rounded-lg border border-slate-700">
+                                    サンプル画像変更
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Radar Chart Canvas Container -->
+                        <div class="relative bg-slate-950/60 p-2 rounded-xl border border-slate-800/80 flex flex-col items-center justify-center aspect-square">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Quick Summary Badge -->
+                    <div class="bg-slate-950/80 rounded-xl p-3 border border-slate-800 flex justify-around items-center text-center">
+                        <div>
+                            <span class="text-xs text-slate-400 block">総合評価平均</span>
+                            <span id="score-avg" class="text-xl font-bold text-purple-400">3.0</span>
+                            <span class="text-xs text-slate-500">/ 5.0</span>
+                        </div>
+                        <div class="h-8 w-px bg-slate-800"></div>
+                        <div>
+                            <span class="text-xs text-slate-400 block">最高評価観点</span>
+                            <span id="score-top-item" class="text-sm font-semibold text-pink-400">惹きつける</span>
+                        </div>
+                    </div>
+
+                    <!-- Detailed / Final Review Memo -->
+                    <div>
+                        <label class="block text-xs font-medium text-slate-400 mb-1">
+                            <i class="fa-solid fa-pen-nib mr-1"></i>詳細考察・コンテスト審査メモ
+                        </label>
+                        <textarea id="art-memo" rows="2" placeholder="詳細な技術・技法、テーマ性、他作品との比較メモなど..." 
+                                  class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 focus:outline-none focus:border-purple-500 transition resize-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap gap-3">
+                    <button id="btn-save-log" class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center space-x-2 transition">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>この作品を保存</span>
+                    </button>
+                    <button id="btn-export-card" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 py-3 px-3 rounded-xl font-medium text-xs flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-download text-purple-400"></i>
+                        <span>カード画像保存</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: 2. 6 Criteria Sliders -->
+            <div class="lg:col-span-6 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <div>
+                        <h2 class="font-bold text-base text-slate-100 flex items-center space-x-2">
+                            <span class="bg-pink-600 text-white text-xs px-2 py-0.5 rounded-md">2</span>
+                            <span>レーダーチャートで評価（6項目）</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">直感または熟考の上、スライダー（1〜5点）で評価</p>
+                    </div>
+                    <button id="btn-reset-scores" class="text-xs text-slate-400 hover:text-slate-200 underline">
+                        リセット
+                    </button>
+                </div>
+
+                <!-- 6 Criteria Sliders Container -->
+                <div id="sliders-container" class="space-y-3.5">
+                    <!-- Dynamic rendering by JS -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODAL: Evaluation Guide Modal -->
+    <div id="modal-guide" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-lg font-bold text-slate-100 flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-info text-purple-400"></i>
+                    <span>評価基準ガイド（田中の視点）</span>
+                </h3>
+                <button id="close-guide" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <p class="text-xs text-slate-300 leading-relaxed">
+                学芸員・田中の視覚芸術作品の評価軸です。直感評価と分析的評価を組み合わせることで作品の深層にアプローチできます。
+            </p>
+
+            <div id="guide-list-container" class="space-y-3 text-xs">
+                <!-- Inserted by JS -->
+            </div>
+
+            <div class="pt-2 text-right">
+                <button id="close-guide-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 rounded-xl text-xs transition">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Saved Logs Gallery & Export/Import -->
+    <div id="modal-gallery" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 max-h-[90vh] flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-100 flex items-center space-x-2">
+                        <i class="fa-solid fa-trophy text-purple-400"></i>
+                        <span>絵画コンテスト全作品一覧（30作品）</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">記録した全作品のスコア・初見感想の確認・スマホ本体へのバックアップ</p>
+                </div>
+                <button id="close-gallery" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Backup & Export Tools -->
+            <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 my-3 flex flex-wrap gap-2 items-center justify-between text-xs">
+                <span class="text-slate-300 font-medium"><i class="fa-solid fa-hard-drive text-purple-400 mr-1"></i>スマホ本体に保存・復元:</span>
+                <div class="flex space-x-2">
+                    <button id="btn-export-backup" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1 transition">
+                        <i class="fa-solid fa-file-export"></i>
+                        <span>全データを出力 (JSON)</span>
+                    </button>
+                    <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer flex items-center space-x-1 transition">
+                        <i class="fa-solid fa-file-import"></i>
+                        <span>復元 (JSON)</span>
+                        <input type="file" id="import-json-file" accept=".json" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <div id="gallery-items-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 py-2 overflow-y-auto flex-1">
+                <!-- Dynamic cards loaded -->
+            </div>
+
+            <div class="border-t border-slate-800 pt-3 flex justify-between items-center">
+                <button id="btn-clear-all" class="text-xs text-rose-400 hover:text-rose-300">
+                    全評価リセット
+                </button>
+                <button id="close-gallery-btn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 transform translate-y-24 opacity-0 transition-all duration-300 z-50 text-xs md:text-sm">
+        <i class="fa-solid fa-circle-check"></i>
+        <span id="toast-message">保存しました</span>
+    </div>
+
+    <script>
+        // Data structure for the 6 Axes based on Tanaka's evaluation standard
+        const CRITERIA = [
+            {
+                key: 'beautiful',
+                label: '美しい',
+                note: '醜い美しさ、儚い美しさなどもある',
+                icon: 'fa-wand-magic-sparkles',
+                color: '#ec4899', // pink
+                value: 3
+            },
+            {
+                key: 'captivating',
+                label: '惹きつける',
+                note: '動き、構図、かたちや色彩の妙、構想力など',
+                icon: 'fa-magnet',
+                color: '#8b5cf6', // purple
+                value: 3
+            },
+            {
+                key: 'diverse_viewpoints',
+                label: '多様な視点が提供されている',
+                note: '多様な引き出しがあり、経験や感性に応じた解釈・見方ができる',
+                icon: 'fa-cubes',
+                color: '#3b82f6', // blue
+                value: 3
+            },
+            {
+                key: 'historical',
+                label: '歴史性を踏まえている',
+                note: '革新性や意外性も含まれる',
+                icon: 'fa-landmark',
+                color: '#10b981', // emerald
+                value: 3
+            },
+            {
+                key: 'inexpressible',
+                label: '言語化できない',
+                note: '言葉を超えた的確な表現手段',
+                icon: 'fa-comment-slash',
+                color: '#f59e0b', // amber
+                value: 3
+            },
+            {
+                key: 'deeply_touching',
+                label: '心に沁みる',
+                note: '味わい深く、飽きがこない',
+                icon: 'fa-heart',
+                color: '#ef4444', // red
+                value: 3
+            }
+        ];
+
+        // Default sample photos
+        const SAMPLES = [
+            'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1578926375605-eaf7559b1458?w=600&auto=format&fit=crop',
+            'https://images.unsplash.com/photo-1582562124811-c091b7a0a00d?w=600&auto=format&fit=crop'
+        ];
+
+        // IndexedDB Storage Engine for 30 high-res photos & data
+        const DB_NAME = 'ArtContestDB';
+        const STORE_NAME = 'entries';
+        let db = null;
+
+        let currentEntryId = 1; // 1 to 30
+        let entriesData = {}; // Memory cache of all 30 entries
+        let radarChartInstance = null;
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+                    }
+                };
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve();
+                };
+                request.onerror = (e) => reject(e);
+            });
+        }
+
+        async function loadAllEntriesFromDB() {
+            return new Promise((resolve) => {
+                if (!db) return resolve({});
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const list = req.result || [];
+                    const map = {};
+                    list.forEach(item => { map[item.id] = item; });
+                    resolve(map);
+                };
+                req.onerror = () => resolve({});
+            });
+        }
+
+        async function saveEntryToDB(entryObj) {
+            return new Promise((resolve) => {
+                if (!db) return resolve();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(entryObj);
+                tx.oncomplete = () => resolve();
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initDB();
+                entriesData = await loadAllEntriesFromDB();
+            } catch (err) {
+                console.error('DB initialization failed:', err);
+            }
+
+            // Ensure 30 entry slots exist in memory
+            for (let i = 1; i <= 30; i++) {
+                if (!entriesData[i]) {
+                    entriesData[i] = createEmptyEntry(i);
+                }
+            }
+
+            setupEntrySelectors();
+            renderSliders();
+            renderGuideModalList();
+            initChart();
+            
+            // Load Entry 1
+            loadEntryToForm(1);
+            setupEventListeners();
+            updateLogCount();
+        });
+
+        function createEmptyEntry(id) {
+            return {
+                id: id,
+                title: `作品 No.${id}`,
+                artist: '',
+                location: '絵画コンテスト',
+                firstImpression: '',
+                memo: '',
+                imgSrc: SAMPLES[(id - 1) % SAMPLES.length],
+                scores: CRITERIA.map(c => ({ key: c.key, label: c.label, value: 3 })),
+                updatedAt: new Date().toISOString()
+            };
+        }
+
+        function setupEntrySelectors() {
+            const dropdown = document.getElementById('select-entry-dropdown');
+            const pillsContainer = document.getElementById('entry-pills-container');
+            dropdown.innerHTML = '';
+            pillsContainer.innerHTML = '';
+
+            for (let i = 1; i <= 30; i++) {
+                // Dropdown option
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = `No.${i} - ${entriesData[i]?.title || '作品 No.' + i}`;
+                dropdown.appendChild(opt);
+
+                // Quick pill
+                const pill = document.createElement('button');
+                pill.id = `pill-entry-${i}`;
+                pill.className = `entry-pill shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 hover:border-purple-500 transition`;
+                pill.innerText = `${i}`;
+                pill.onclick = () => switchEntry(i);
+                pillsContainer.appendChild(pill);
+            }
+        }
+
+        function updatePillsState() {
+            document.querySelectorAll('.entry-pill').forEach(btn => btn.classList.remove('active'));
+            const activePill = document.getElementById(`pill-entry-${currentEntryId}`);
+            if (activePill) activePill.classList.add('active');
+
+            const dropdown = document.getElementById('select-entry-dropdown');
+            if (dropdown) dropdown.value = currentEntryId;
+
+            document.getElementById('current-entry-badge').innerText = `No. ${currentEntryId} / 30`;
+        }
+
+        function renderSliders() {
+            const container = document.getElementById('sliders-container');
+            container.innerHTML = '';
+
+            CRITERIA.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2';
+                row.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <div class="flex items-center space-x-2">
+                            <span class="w-6 h-6 rounded-lg flex items-center justify-center text-xs text-white" style="background-color: ${item.color}33; color: ${item.color}">
+                                <i class="fa-solid ${item.icon}"></i>
+                            </span>
+                            <span class="font-bold text-slate-200">${item.label}</span>
+                        </div>
+                        <span id="value-display-${index}" class="font-bold text-sm text-purple-400 bg-purple-950/50 px-2 py-0.5 rounded border border-purple-800/40">${item.value}</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="text-[10px] text-slate-500">1</span>
+                        <input type="range" id="slider-${index}" min="1" max="5" step="1" value="${item.value}" 
+                               class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                        <span class="text-[10px] text-slate-500">5</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 pl-1 leading-snug">
+                        <span class="text-slate-500">※</span> ${item.note}
+                    </p>
+                `;
+                container.appendChild(row);
+
+                setTimeout(() => {
+                    const slider = document.getElementById(`slider-${index}`);
+                    slider.addEventListener('input', (e) => {
+                        const val = parseInt(e.target.value);
+                        CRITERIA[index].value = val;
+                        document.getElementById(`value-display-${index}`).innerText = val;
+                        updateChart();
+                        updateAvgAndTop();
+                        autoSaveCurrentEntry();
+                    });
+                }, 0);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: CRITERIA.map(c => c.label),
+                    datasets: [{
+                        label: '評価スコア',
+                        data: CRITERIA.map(c => c.value),
+                        backgroundColor: 'rgba(139, 92, 246, 0.25)',
+                        borderColor: '#8b5cf6',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#ec4899',
+                        pointBorderColor: '#ffffff',
+                        pointHoverBackgroundColor: '#ffffff',
+                        pointHoverBorderColor: '#ec4899',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255, 255, 255, 0.15)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            pointLabels: {
+                                color: '#e2e8f0',
+                                font: { size: 10, weight: 'bold' }
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                backdropColor: 'transparent',
+                                stepSize: 1,
+                                min: 0,
+                                max: 5,
+                                font: { size: 9 }
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 5
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#e2e8f0',
+                            bodyColor: '#a7f3d0'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!radarChartInstance) return;
+            radarChartInstance.data.datasets[0].data = CRITERIA.map(c => c.value);
+            radarChartInstance.update();
+        }
+
+        function updateAvgAndTop() {
+            const values = CRITERIA.map(c => c.value);
+            const sum = values.reduce((a, b) => a + b, 0);
+            const avg = (sum / values.length).toFixed(1);
+            document.getElementById('score-avg').innerText = avg;
+
+            let maxVal = -1;
+            let topItem = CRITERIA[0].label;
+            CRITERIA.forEach(c => {
+                if (c.value > maxVal) {
+                    maxVal = c.value;
+                    topItem = c.label;
+                }
+            });
+            document.getElementById('score-top-item').innerText = topItem;
+        }
+
+        function loadEntryToForm(id) {
+            currentEntryId = id;
+            updatePillsState();
+
+            const data = entriesData[id] || createEmptyEntry(id);
+
+            document.getElementById('art-title').value = data.title || `作品 No.${id}`;
+            document.getElementById('art-artist').value = data.artist || '';
+            document.getElementById('art-location').value = data.location || '絵画コンテスト';
+            document.getElementById('art-first-impression').value = data.firstImpression || '';
+            document.getElementById('art-memo').value = data.memo || '';
+            document.getElementById('artwork-img').src = data.imgSrc || SAMPLES[0];
+
+            // Apply scores
+            if (data.scores && Array.isArray(data.scores)) {
+                data.scores.forEach((s, idx) => {
+                    if (CRITERIA[idx]) {
+                        CRITERIA[idx].value = s.value;
+                        const slider = document.getElementById(`slider-${idx}`);
+                        if (slider) slider.value = s.value;
+                        const disp = document.getElementById(`value-display-${idx}`);
+                        if (disp) disp.innerText = s.value;
+                    }
+                });
+            }
+
+            updateChart();
+            updateAvgAndTop();
+        }
+
+        function switchEntry(id) {
+            if (id < 1 || id > 30) return;
+            autoSaveCurrentEntry();
+            loadEntryToForm(id);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function autoSaveCurrentEntry() {
+            const title = document.getElementById('art-title').value || `作品 No.${currentEntryId}`;
+            const artist = document.getElementById('art-artist').value;
+            const location = document.getElementById('art-location').value;
+            const firstImpression = document.getElementById('art-first-impression').value;
+            const memo = document.getElementById('art-memo').value;
+            const imgSrc = document.getElementById('artwork-img').src;
+
+            const entryObj = {
+                id: currentEntryId,
+                title,
+                artist,
+                location,
+                firstImpression,
+                memo,
+                imgSrc,
+                scores: CRITERIA.map(c => ({ key: c.key, label: c.label, value: c.value })),
+                updatedAt: new Date().toISOString()
+            };
+
+            entriesData[currentEntryId] = entryObj;
+            saveEntryToDB(entryObj);
+            updateLogCount();
+
+            // Update dropdown label
+            const option = document.querySelector(`#select-entry-dropdown option[value="${currentEntryId}"]`);
+            if (option) option.textContent = `No.${currentEntryId} - ${title}`;
+        }
+
+        function setupEventListeners() {
+            // Dropdown switcher
+            document.getElementById('select-entry-dropdown').addEventListener('change', (e) => {
+                switchEntry(parseInt(e.target.value));
+            });
+
+            document.getElementById('btn-prev-entry').addEventListener('click', () => switchEntry(currentEntryId - 1));
+            document.getElementById('btn-next-entry').addEventListener('click', () => switchEntry(currentEntryId + 1));
+
+            // Copy Full HTML Code to Clipboard for easy GitHub upload
+            document.getElementById('btn-copy-code').addEventListener('click', () => {
+                const fullHtml = document.documentElement.outerHTML;
+                const textarea = document.createElement('textarea');
+                textarea.value = '<!DOCTYPE html>\n' + fullHtml;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('全コードをコピーしました！GitHubに貼り付け可能です');
+                } catch (err) {
+                    showToast('コピーに失敗しました');
+                }
+                document.body.removeChild(textarea);
+            });
+
+            // Auto save on inputs
+            ['art-title', 'art-artist', 'art-location', 'art-first-impression', 'art-memo'].forEach(id => {
+                document.getElementById(id).addEventListener('input', autoSaveCurrentEntry);
+            });
+
+            // Camera/Image Upload with canvas compression for smooth storage
+            const imageUpload = document.getElementById('image-upload');
+            imageUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        const img = new Image();
+                        img.onload = function() {
+                            // Resize to max 800px width/height for fast mobile memory
+                            const canvas = document.createElement('canvas');
+                            let w = img.width;
+                            let h = img.height;
+                            const maxDim = 800;
+                            if (w > maxDim || h > maxDim) {
+                                if (w > h) {
+                                    h = Math.round((h * maxDim) / w);
+                                    w = maxDim;
+                                } else {
+                                    w = Math.round((w * maxDim) / h);
+                                    h = maxDim;
+                                }
+                            }
+                            canvas.width = w;
+                            canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, w, h);
+                            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+                            document.getElementById('artwork-img').src = compressedBase64;
+                            autoSaveCurrentEntry();
+                        };
+                        img.src = evt.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Cycle Sample Images
+            document.getElementById('btn-sample-img').addEventListener('click', () => {
+                const randomSample = SAMPLES[Math.floor(Math.random() * SAMPLES.length)];
+                document.getElementById('artwork-img').src = randomSample;
+                autoSaveCurrentEntry();
+            });
+
+            // Reset Scores
+            document.getElementById('btn-reset-scores').addEventListener('click', () => {
+                CRITERIA.forEach((c, idx) => {
+                    c.value = 3;
+                    document.getElementById(`slider-${idx}`).value = 3;
+                    document.getElementById(`value-display-${idx}`).innerText = 3;
+                });
+                updateChart();
+                updateAvgAndTop();
+                autoSaveCurrentEntry();
+            });
+
+            // Modals
+            document.getElementById('btn-guide').addEventListener('click', () => document.getElementById('modal-guide').classList.remove('hidden'));
+            document.getElementById('close-guide').addEventListener('click', () => document.getElementById('modal-guide').classList.add('hidden'));
+            document.getElementById('close-guide-btn').addEventListener('click', () => document.getElementById('modal-guide').classList.add('hidden'));
+
+            document.getElementById('btn-gallery').addEventListener('click', () => {
+                renderGalleryLogs();
+                document.getElementById('modal-gallery').classList.remove('hidden');
+            });
+            document.getElementById('close-gallery').addEventListener('click', () => document.getElementById('modal-gallery').classList.add('hidden'));
+            document.getElementById('close-gallery-btn').addEventListener('click', () => document.getElementById('modal-gallery').classList.add('hidden'));
+
+            // Manual Save Button
+            document.getElementById('btn-save-log').addEventListener('click', () => {
+                autoSaveCurrentEntry();
+                showToast(`No.${currentEntryId} の評価・感想を保存しました`);
+            });
+
+            // Export Card
+            document.getElementById('btn-export-card').addEventListener('click', exportSummaryCard);
+
+            // Export All Data JSON (Mobile Storage Download)
+            document.getElementById('btn-export-backup').addEventListener('click', exportAllDataJSON);
+
+            // Import Data JSON
+            document.getElementById('import-json-file').addEventListener('change', importAllDataJSON);
+
+            // Clear All
+            document.getElementById('btn-clear-all').addEventListener('click', async () => {
+                const confirmed = window.confirm ? confirm('全30作品の評価データ・感想をすべて初期化しますか？') : true;
+                if (confirmed) {
+                    for (let i = 1; i <= 30; i++) {
+                        entriesData[i] = createEmptyEntry(i);
+                        await saveEntryToDB(entriesData[i]);
+                    }
+                    loadEntryToForm(1);
+                    renderGalleryLogs();
+                    updateLogCount();
+                    showToast('全データをリセットしました');
+                }
+            });
+        }
+
+        function updateLogCount() {
+            let count = 0;
+            for (let i = 1; i <= 30; i++) {
+                if (entriesData[i] && (entriesData[i].firstImpression || entriesData[i].artist || entriesData[i].memo)) {
+                    count++;
+                }
+            }
+            document.getElementById('log-count').innerText = count;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-24', 'opacity-0'), 2500);
+        }
+
+        function exportSummaryCard() {
+            const cardEl = document.getElementById('export-card');
+            showToast('画像を生成中...');
+            html2canvas(cardEl, { backgroundColor: '#0f172a', scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Entry_No${currentEntryId}_Evaluation.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('カード画像を端末に保存しました');
+            }).catch(err => {
+                console.error(err);
+                showToast('画像の生成に失敗しました');
+            });
+        }
+
+        // Save All 30 Entries as a downloadable JSON file for smartphone storage
+        function exportAllDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(entriesData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `ArtContest_Evaluation_Backup_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('全データをスマホ本体に保存しました');
+        }
+
+        function importAllDataJSON(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (typeof imported === 'object') {
+                        entriesData = imported;
+                        for (let key in entriesData) {
+                            await saveEntryToDB(entriesData[key]);
+                        }
+                        setupEntrySelectors();
+                        loadEntryToForm(1);
+                        renderGalleryLogs();
+                        updateLogCount();
+                        showToast('データを復元・読み込みました');
+                    }
+                } catch (err) {
+                    showToast('JSONファイルの読み込みに失敗しました');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function renderGuideModalList() {
+            const container = document.getElementById('guide-list-container');
+            container.innerHTML = '';
+            CRITERIA.forEach(c => {
+                const box = document.createElement('div');
+                box.className = 'bg-slate-950/80 p-3 rounded-xl border border-slate-800 space-y-1';
+                box.innerHTML = `
+                    <div class="font-bold text-slate-200 flex items-center space-x-2">
+                        <i class="fa-solid ${c.icon}" style="color:${c.color}"></i>
+                        <span>${c.label}</span>
+                    </div>
+                    <p class="text-slate-400 text-[11px] leading-relaxed pl-5">${c.note}</p>
+                `;
+                container.appendChild(box);
+            });
+        }
+
+        function renderGalleryLogs() {
+            const container = document.getElementById('gallery-items-container');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= 30; i++) {
+                const item = entriesData[i] || createEmptyEntry(i);
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border flex flex-col justify-between space-y-2 text-xs ${i === currentEntryId ? 'bg-purple-950/30 border-purple-500' : 'bg-slate-950 border-slate-800'}`;
+                
+                const avgScore = item.scores ? (item.scores.reduce((a,b)=>a+b.value,0)/item.scores.length).toFixed(1) : '3.0';
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                        <span class="font-bold text-purple-400">No. ${i}</span>
+                        <span class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300 font-semibold">平均 ${avgScore} 点</span>
+                    </div>
+                    <div class="flex space-x-2.5 items-center">
+                        <img src="${item.imgSrc}" class="w-14 h-14 rounded-lg object-cover bg-slate-900 border border-slate-800 shrink-0">
+                        <div class="overflow-hidden flex-1">
+                            <h4 class="font-bold text-slate-100 truncate">${item.title}</h4>
+                            <p class="text-[11px] text-slate-400 truncate">${item.artist || '作者未入力'}</p>
+                        </div>
+                    </div>
+                    ${item.firstImpression ? `
+                        <p class="text-[11px] text-pink-300/90 italic bg-purple-950/40 p-1.5 rounded border border-purple-900/50 line-clamp-2">
+                            <i class="fa-solid fa-eye mr-1 text-[9px]"></i>"${item.firstImpression}"
+                        </p>
+                    ` : '<p class="text-[10px] text-slate-600 italic">初見感想未記入</p>'}
+                    <div class="pt-1 border-t border-slate-800/80 flex justify-end">
+                        <button onclick="selectAndCloseModal(${i})" class="text-xs text-purple-400 hover:text-purple-300 flex items-center space-x-1">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>編集・評価</span>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            }
+        }
+
+        window.selectAndCloseModal = function(id) {
+            switchEntry(id);
+            document.getElementById('modal-gallery').classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
