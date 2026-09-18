@@ -661,7 +661,7 @@
             document.getElementById('art-evaluator').value = data.evaluator || lastEvaluatorName || '';
             document.getElementById('art-artist').value = data.artist || '';
             document.getElementById('art-location').value = data.location || '絵画コンテスト';
-            document.getElementById('art-firstImpression').value = data.firstImpression || '';
+            document.getElementById('art-first-impression').value = data.firstImpression || '';
             document.getElementById('art-memo').value = data.memo || '';
             document.getElementById('artwork-img').src = data.imgSrc || SAMPLES[0];
 
@@ -839,6 +839,11 @@
 
             // Export All Data JSON (Mobile Storage Download)
             document.getElementById('btn-export-backup').addEventListener('click', exportAllDataJSON);
+
+            // Import Data JSON
+            document.getElementById('import-json-file').addEventListener('change', importAllDataJSON);
+        }
+
         // Export CSV for Google Sheets with UTF-8 BOM to prevent Japanese garbling
         function exportCSVForSheets() {
             const headers = [
