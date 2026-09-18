@@ -142,11 +142,14 @@
                             <input type="text" id="art-title" value="作品 No.1" placeholder="作品名・タイトルを入力" 
                                    class="w-full bg-transparent font-bold text-xl text-slate-100 border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none transition py-1">
                             <div class="flex flex-wrap gap-2 text-xs text-slate-400">
+                                <input type="text" id="art-evaluator" value="" placeholder="👤 評価者名 (審査員)" 
+                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-32 font-semibold text-purple-300 transition">
+                                <span>•</span>
                                 <input type="text" id="art-artist" value="" placeholder="作者名 / 出品者" 
-                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-36 transition">
+                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-32 transition">
                                 <span>•</span>
                                 <input type="text" id="art-location" value="絵画コンテスト" placeholder="部門 / 審査区分" 
-                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-36 transition">
+                                       class="bg-transparent border-b border-transparent hover:border-slate-700 focus:border-purple-500 focus:outline-none w-32 transition">
                             </div>
                         </div>
                     </div>
@@ -254,7 +257,7 @@
             <div class="flex justify-between items-center border-b border-slate-800 pb-3">
                 <h3 class="text-lg font-bold text-slate-100 flex items-center space-x-2">
                     <i class="fa-solid fa-circle-info text-purple-400"></i>
-                    <span>評価基準ガイド</span>
+                    <span>評価基準ガイド（田中の視点）</span>
                 </h3>
                 <button id="close-guide" class="text-slate-400 hover:text-white p-1">
                     <i class="fa-solid fa-xmark text-lg"></i>
@@ -262,7 +265,7 @@
             </div>
             
             <p class="text-xs text-slate-300 leading-relaxed">
-                視覚芸術作品の評価軸です。直感評価と分析的評価を組み合わせることで作品の深層にアプローチできます。
+                学芸員・田中の視覚芸術作品の評価軸です。直感評価と分析的評価を組み合わせることで作品の深層にアプローチできます。
             </p>
 
             <div id="guide-list-container" class="space-y-3 text-xs">
@@ -295,11 +298,19 @@
 
             <!-- Backup & Export Tools -->
             <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 my-3 flex flex-wrap gap-2 items-center justify-between text-xs">
-                <span class="text-slate-300 font-medium"><i class="fa-solid fa-hard-drive text-purple-400 mr-1"></i>スマホ本体に保存・復元:</span>
-                <div class="flex space-x-2">
-                    <button id="btn-export-backup" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1 transition">
+                <span class="text-slate-300 font-medium"><i class="fa-solid fa-table text-emerald-400 mr-1"></i>スプレッドシート集計・データ保存:</span>
+                <div class="flex flex-wrap gap-2">
+                    <button id="btn-export-csv" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1 transition font-medium">
+                        <i class="fa-solid fa-file-csv"></i>
+                        <span>CSV出力 (スプレッドシート用)</span>
+                    </button>
+                    <button id="btn-copy-tsv" class="bg-teal-700 hover:bg-teal-600 text-white px-3 py-1.5 rounded-lg flex items-center space-x-1 transition font-medium">
+                        <i class="fa-solid fa-paste"></i>
+                        <span>表データコピー (貼り付け用)</span>
+                    </button>
+                    <button id="btn-export-backup" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center space-x-1 transition">
                         <i class="fa-solid fa-file-export"></i>
-                        <span>全データを出力 (JSON)</span>
+                        <span>JSON保存</span>
                     </button>
                     <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer flex items-center space-x-1 transition">
                         <i class="fa-solid fa-file-import"></i>
@@ -399,6 +410,7 @@
         let currentEntryId = 1; // 1 to 30
         let entriesData = {}; // Memory cache of all 30 entries
         let radarChartInstance = null;
+        let lastEvaluatorName = ''; // Shared evaluator name across entries
 
         function initDB() {
             return new Promise((resolve, reject) => {
@@ -473,6 +485,7 @@
             return {
                 id: id,
                 title: `作品 No.${id}`,
+                evaluator: lastEvaluatorName || '',
                 artist: '',
                 location: '絵画コンテスト',
                 firstImpression: '',
@@ -645,9 +658,10 @@
             const data = entriesData[id] || createEmptyEntry(id);
 
             document.getElementById('art-title').value = data.title || `作品 No.${id}`;
+            document.getElementById('art-evaluator').value = data.evaluator || lastEvaluatorName || '';
             document.getElementById('art-artist').value = data.artist || '';
             document.getElementById('art-location').value = data.location || '絵画コンテスト';
-            document.getElementById('art-first-impression').value = data.firstImpression || '';
+            document.getElementById('art-firstImpression').value = data.firstImpression || '';
             document.getElementById('art-memo').value = data.memo || '';
             document.getElementById('artwork-img').src = data.imgSrc || SAMPLES[0];
 
@@ -677,15 +691,21 @@
 
         function autoSaveCurrentEntry() {
             const title = document.getElementById('art-title').value || `作品 No.${currentEntryId}`;
-            const artist = document.getElementById('art-artist').value;
-            const location = document.getElementById('art-location').value;
-            const firstImpression = document.getElementById('art-first-impression').value;
-            const memo = document.getElementById('art-memo').value;
+            const evaluator = document.getElementById('art-evaluator').value || '';
+            const artist = document.getElementById('art-artist').value || '';
+            const location = document.getElementById('art-location').value || '';
+            const firstImpression = document.getElementById('art-first-impression').value || '';
+            const memo = document.getElementById('art-memo').value || '';
             const imgSrc = document.getElementById('artwork-img').src;
+
+            if (evaluator) {
+                lastEvaluatorName = evaluator;
+            }
 
             const entryObj = {
                 id: currentEntryId,
                 title,
+                evaluator,
                 artist,
                 location,
                 firstImpression,
@@ -730,7 +750,7 @@
             });
 
             // Auto save on inputs
-            ['art-title', 'art-artist', 'art-location', 'art-first-impression', 'art-memo'].forEach(id => {
+            ['art-title', 'art-evaluator', 'art-artist', 'art-location', 'art-first-impression', 'art-memo'].forEach(id => {
                 document.getElementById(id).addEventListener('input', autoSaveCurrentEntry);
             });
 
@@ -811,26 +831,120 @@
             // Export Card
             document.getElementById('btn-export-card').addEventListener('click', exportSummaryCard);
 
+            // Export CSV for Google Sheets
+            document.getElementById('btn-export-csv').addEventListener('click', exportCSVForSheets);
+
+            // Copy TSV for direct Google Sheets paste
+            document.getElementById('btn-copy-tsv').addEventListener('click', copyTSVForSheets);
+
             // Export All Data JSON (Mobile Storage Download)
             document.getElementById('btn-export-backup').addEventListener('click', exportAllDataJSON);
+        // Export CSV for Google Sheets with UTF-8 BOM to prevent Japanese garbling
+        function exportCSVForSheets() {
+            const headers = [
+                '評価者名', '作品No.', '作品名', '作者名', '部門・区分',
+                '1.初見感想', '美しい', '惹きつける', '多様な視点',
+                '歴史性', '言語化できない', '心に沁みる', '平均点', '最高評価項目', '詳細メモ', '更新日時'
+            ];
 
-            // Import Data JSON
-            document.getElementById('import-json-file').addEventListener('change', importAllDataJSON);
+            const rows = [headers];
 
-            // Clear All
-            document.getElementById('btn-clear-all').addEventListener('click', async () => {
-                const confirmed = window.confirm ? confirm('全30作品の評価データ・感想をすべて初期化しますか？') : true;
-                if (confirmed) {
-                    for (let i = 1; i <= 30; i++) {
-                        entriesData[i] = createEmptyEntry(i);
-                        await saveEntryToDB(entriesData[i]);
+            for (let i = 1; i <= 30; i++) {
+                const item = entriesData[i] || createEmptyEntry(i);
+                const scores = item.scores || [];
+                const getVal = (idx) => scores[idx] ? scores[idx].value : 3;
+                const avg = scores.length ? (scores.reduce((a,b) => a + b.value, 0) / scores.length).toFixed(1) : '3.0';
+                
+                let topItem = '惹きつける';
+                let maxVal = -1;
+                scores.forEach(s => {
+                    if (s.value > maxVal) {
+                        maxVal = s.value;
+                        topItem = s.label;
                     }
-                    loadEntryToForm(1);
-                    renderGalleryLogs();
-                    updateLogCount();
-                    showToast('全データをリセットしました');
-                }
-            });
+                });
+
+                rows.push([
+                    item.evaluator || lastEvaluatorName || '',
+                    `No.${i}`,
+                    item.title || `作品 No.${i}`,
+                    item.artist || '',
+                    item.location || '',
+                    item.firstImpression || '',
+                    getVal(0), getVal(1), getVal(2), getVal(3), getVal(4), getVal(5),
+                    avg,
+                    topItem,
+                    item.memo || '',
+                    item.updatedAt || ''
+                ]);
+            }
+
+            // Escape quotes & newlines for CSV
+            const csvContent = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+            const bom = '\uFEFF'; // UTF-8 BOM for Google Sheets & Excel
+            const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `ArtContest_Evaluation_Sheets_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('スプレッドシート用CSVを出力しました！');
+        }
+
+        // Copy Tab-Separated Values (TSV) for direct paste into Google Sheets
+        function copyTSVForSheets() {
+            const headers = [
+                '評価者名', '作品No.', '作品名', '作者名', '部門・区分',
+                '1.初見感想', '美しい', '惹きつける', '多様な視点',
+                '歴史性', '言語化できない', '心に沁みる', '平均点', '最高評価項目', '詳細メモ'
+            ];
+
+            const rows = [headers];
+
+            for (let i = 1; i <= 30; i++) {
+                const item = entriesData[i] || createEmptyEntry(i);
+                const scores = item.scores || [];
+                const getVal = (idx) => scores[idx] ? scores[idx].value : 3;
+                const avg = scores.length ? (scores.reduce((a,b) => a + b.value, 0) / scores.length).toFixed(1) : '3.0';
+                
+                let topItem = '惹きつける';
+                let maxVal = -1;
+                scores.forEach(s => {
+                    if (s.value > maxVal) {
+                        maxVal = s.value;
+                        topItem = s.label;
+                    }
+                });
+
+                rows.push([
+                    item.evaluator || lastEvaluatorName || '',
+                    `No.${i}`,
+                    item.title || `作品 No.${i}`,
+                    item.artist || '',
+                    item.location || '',
+                    (item.firstImpression || '').replace(/[\r\n]+/g, ' '),
+                    getVal(0), getVal(1), getVal(2), getVal(3), getVal(4), getVal(5),
+                    avg,
+                    topItem,
+                    (item.memo || '').replace(/[\r\n]+/g, ' ')
+                ]);
+            }
+
+            const tsvText = rows.map(r => r.join('\t')).join('\n');
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = tsvText;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('全30作品の表データをコピーしました！スプレッドシートに貼り付けできます');
+            } catch (err) {
+                showToast('コピーに失敗しました');
+            }
+            document.body.removeChild(textarea);
         }
 
         function updateLogCount() {
